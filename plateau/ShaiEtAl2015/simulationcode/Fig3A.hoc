@@ -1,0 +1,290 @@
+// This model/simulation file has been modified by Adam Shai, 2015
+
+// The original file comes from: Etay Hay, 2011
+//  Models of Neocortical Layer 5b Pyramidal Cells Capturing a Wide Range of
+//  Dendritic and Perisomatic Active Properties
+//  (Hay et al., PLoS Computational Biology, 2011) 
+
+// Here we modify the simulation to randomly distribute synapses along the 
+// dendrites of this cell, as described in (Shai et al., PLoS Computational
+// Biology, 2015)
+
+//====================== General files and tools =====================
+load_file("nrngui.hoc")
+
+//====================== cvode =======================================
+objref cvode
+
+cvode = new CVode()
+cvode.active(1)
+
+//=================== creating cell object ===========================
+load_file("import3d.hoc")
+objref L5PC
+
+strdef morphology_file
+morphology_file = "../morphologies/cell1.asc"
+
+load_file("../models/L5PCbiophys4.hoc")
+load_file("../models/L5PCtemplate.hoc")
+L5PC = new L5PCtemplate(morphology_file)
+
+//=================== load files for distributing synapses ===========================
+
+xopen("distSynsUniform.hoc")
+xopen("distSynsCluster2.hoc")
+
+//=================== create a Section List for the apical tufts ===========================
+//forall{ nseg = L/1.0+2 } // uncomment this to modify length of dendritic segment
+objref tuftList
+tuftList = new SectionList()
+access L5PC.apic[36]
+tuftList.subtree()
+tuftList.remove()
+
+//=================== Plot the neuron ===========================
+objref shapeG
+shapeG = new Shape()
+//shapeG.color_list(L5PC.basal,3) //red
+//shapeG.color_list(tuftList,5) //blue
+//shapeG.color_list(basalList,5) // orange
+//shapeG.color_list(axonList,0)
+//shapeG.color_list(allSections,1)
+
+
+//=================== create a Section List for the apical trunk ===========================
+objref trunk
+trunk = new SectionList()
+access L5PC.apic[0]
+trunk.append()
+access L5PC.apic[1]
+trunk.append()
+access L5PC.apic[2]
+trunk.append()
+access L5PC.apic[3]
+trunk.append()
+access L5PC.apic[4]
+trunk.append()
+access L5PC.apic[14]
+trunk.append()
+access L5PC.apic[20]
+trunk.append()
+access L5PC.apic[26]
+trunk.append()
+access L5PC.apic[34]
+trunk.append()
+access L5PC.apic[36]
+trunk.append()
+
+
+//=================== Parameters for simulation ===========================
+somaInput = 1 // synapses into the basal dendrites?
+dendInput = 1 // synapses into the tuft dendrites?
+nSS = 175 // number of synapses at soma
+nSD = 100 // number of synapses in dendrite
+
+//=================== Initialize output files ===========================
+objref ff1,ff2
+ff1 = new File()
+ff2 = new File()
+
+//=================== Initialize biophysical parameters ===========================
+objref theStim
+access L5PC.soma
+theStim = new IClamp(0.5)
+theStim.amp = 0.0
+
+
+	if(somaInput==1&&dendInput==1){
+		ff1.wopen("O_vs_C.dat")
+		ff2.wopen("O_vd_C.dat")
+		nSyns = nSS
+		nSynsD = nSD
+		}
+	if(somaInput==1&&dendInput==0){
+		ff1.wopen("O_vs_C_onlyS.dat")
+		ff2.wopen("O_vd_C_onlyS.dat")
+		nSyns = nSS
+		nSynsD=0
+		}
+	if(somaInput==0&&dendInput==1){
+		ff1.wopen("O_vs_C_onlyD.dat")
+		ff2.wopen("O_vd_C_onlyD.dat")
+		nSyns=0
+		nSynsD=nSD
+		}
+		
+
+
+
+
+
+
+
+//=================== Initialize synapses ===========================
+objref somaSynList, dendSynList, backSynList
+somaSynList = new List()
+dendSynList = new List()
+backSynList = new List()
+
+temp = 0
+forsec L5PC.basal{ temp = temp+nseg }
+forsec tuftList{ temp = temp+nseg }
+
+bigNum = temp*3
+print bigNum
+// numClust = $1 //number of clusters
+	// section list for synapses to be distributed over= $2
+	// gmax = $3, this is the max conductance of the nmda current
+	// ntar = $4, this defines the conductance of the ampa current
+	//            with ampa current = gmax/ntar
+	// synsPerClust =$5 //number of synapses per cluster
+	// lClust = $6 //length of cluster
+//somaSynList = distSynsCluster2(nClustBasal,L5PC.basal,1,1,nPerClust,15)	 // clustered tuft input
+//dendSynList = distSynsCluster2(nClustTuft,tuftList,1,1,nPerClust,15) // cluster basal input
+//backSynList = distSynsUniform(0,allSections,1,1) // background input
+somaSynList = distSynsUniform(bigNum,L5PC.basal,1,1)	 // distributed tuft input
+dendSynList = distSynsUniform(bigNum,tuftList,1,1) // distributed basal input
+
+//=================== Plot synapses ===========================
+for i=0,somaSynList.count()-1{
+    shapeG.point_mark(somaSynList.object(i),2,"O",3)
+}
+
+for i=0,dendSynList.count()-1{
+    shapeG.point_mark(dendSynList.object(i),2,"O",3)
+}
+
+
+//=================== Initialize simulation ===========================
+// Set all conductances to zero
+for i=0,somaSynList.count()-1{ somaSynList.object(i).gmax = 0.0 }
+for i=0,dendSynList.count()-1{ dendSynList.object(i).gmax = 0.0 }
+//for i=0,backSynList.count()-1{ backSynList.object(i).gmax = 0.0 }
+
+// Find resting potential
+access L5PC.soma
+objref vrec
+vrec = new Vector()
+//vrec.record(&L5PC.soma.v(0.5))
+cvode.active(1)
+forall{v=-75}
+tstop = 1000
+run()
+vrest = v
+print "REST AFTER LONG CVODE RUN IS ", vrest, " AT TIME ", t
+
+objref svstate
+svstate  = new SaveState()
+svstate.save()
+
+
+cvode.active(0)
+svstate.restore()
+tstop = t+20
+dt = 0.025
+while(t<tstop){fadvance()}
+vrest = v
+print "REST AFTER NONCVODE RUN IS ", vrest, " AT TIME ", t
+
+simStopTime = t
+svstate.save()
+
+access L5PC.soma
+distance(0)
+
+objref vrec, vrec2, trec
+
+//=================== Initialize synapses ===========================
+objref rvec
+objref rn
+rn = new Random(239480)
+rn.discunif(0, bigNum-1)
+
+objref rn2
+rn2 = new Random(2139)
+rn2.uniform(55,105)
+	i=0	
+	for iii=0,dendSynList.count()-1{ dendSynList.object(iii).gmax = 0.0 }
+	for iii=0,somaSynList.count()-1{ somaSynList.object(iii).gmax = 0.0 }
+	
+	//set somatic ones
+	if(i!=-1){
+		rvec = new Vector(nSyns)
+		rvec.setrand(rn)
+		print "random soma synapses are:"
+		print nSyns
+		for k=0,rvec.size()-1{ 
+		somaSynList.object(rvec.x[k]).gmax=1.0
+		somaSynList.object(rvec.x[k]).del=(simStopTime+1)		
+		}
+		
+	}
+		
+	for iii=0,rvec.size()-1{	
+	somaSynList.object(rvec.x[iii]).del=(simStopTime+rn2.repick())
+	}
+	
+		//set dend ones
+	if(i!=-1){
+		rvec = new Vector(nSynsD)
+		rvec.setrand(rn)
+		print "random dend synapses are:"
+		print nSynsD
+		for k=0,rvec.size()-1{ 
+		dendSynList.object(rvec.x[k]).gmax=1.0
+		dendSynList.object(rvec.x[k]).del=(simStopTime+1)		
+		}
+	
+	}	
+	
+	for iii=0,rvec.size()-1{
+		dendSynList.object(rvec.x[iii]).del=(simStopTime+rn2.repick())
+	}
+	
+
+	
+//=================== Run Simulation ===========================
+		vrec = new Vector()
+		vrec2 = new Vector()
+		trec = new Vector()
+		//vrec.record(&L5PC.soma.v(0.5))
+		svstate.restore(1)
+		tstop = t+200
+		dt = 0.05
+		//dt = 0.1
+		while(t<tstop){
+			fadvance()
+			vrec.append(L5PC.soma.v)
+			vrec2.append(L5PC.apic[36].v(0.9))
+			trec.append(t)
+			}
+
+	vrec.printf(ff1,"%8.4f\t")
+	ff1.printf("\n")
+	
+	vrec2.printf(ff2,"%8.4f\t")
+	ff2.printf("\n")
+	print "soma v_max is ", vrec.max()
+	print "dend v_max is ", vrec2.max()
+	print ""
+
+ff1.close()
+ff2.close()
+
+//Plot membrane potential during simulation
+objref g
+g = new Graph()
+g.size(0, 350, -90,40)
+vrec.plot(g,.1)
+
+objref g2
+g2 = new Graph()
+g2.size(0, 350, -90,40)
+vrec2.plot(g2,.1)
+//quit()
+
+
+
+
+

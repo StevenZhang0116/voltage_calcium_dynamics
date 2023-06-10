@@ -1,0 +1,4 @@
+//moddir simulationcode
+load_file("nrngui.hoc")
+chdir("simulationcode")
+load_file("Fig3A.hoc")

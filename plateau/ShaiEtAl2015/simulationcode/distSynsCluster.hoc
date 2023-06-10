@@ -1,0 +1,176 @@
+objref synList
+
+obfunc distSynsCluster() { local totalSyns localobj lengthList1, cumLList1, sref, t1List, lengthList, cumLList, tobj, toAdd, randomNum, randomNum2, r2, randomVec, distList
+	// INPUTS
+	// numClust = $1 //number of clusters
+	// section list for synapses to be distributed over= $2
+	// gmax = $3, this is the max conductance of the nmda current
+	// ntar = $4, this defines the conductance of the ampa current
+	//            with ampa current = gmax/ntar
+	// synsPerClust =$5 //number of synapses per cluster
+	// lClust = $6 //length of cluster
+
+   seed = 1
+   lengthList = new Vector(0) // a vector of branch lengths in order
+   numClust = $1 //numClust	 
+   synsPerClust =$5 //number of synapses per cluster
+   lClust = $6 //length of cluster
+
+   totalL = 0
+   forsec $o2 {
+       totalL += L
+       lengthList.append(L)
+    }
+
+cumLList = new Vector(lengthList.size()) // a vector of the cummulative 
+											// branch length, in order
+	
+for i=0,lengthList.size()-1{
+    cumLList.x[i]=lengthList.sum(0,i)
+}
+
+synList = new List()
+	randomNum = new Random()
+	rN = randomNum.uniform(0,totalL)
+	randomNum.ACG(246)
+	
+
+for i=1,numClust{
+
+	// FIND CENTER OF CLUSTER
+	rN = randomNum.uniform(0,totalL)
+	//find first index which has length greater than chosen random number
+
+	centerSecInd = cumLList.indwhere(">",rN)
+
+	
+	dummy = 0
+	forsec $o2{
+	
+	 if(dummy==centerSecInd){ //if we are in the section with the cluster center
+	  	 {where = (cumLList.x[centerSecInd]-rN)/L	
+	  	 distance(0,where)
+	  	 
+	  	t1List = new SectionList()
+	  	 t1List.append()
+	  	 theLength = L}
+	  	 
+	  	 
+	  	 
+	  	 while(theLength<lClust){ //while length<lClust add on children and parents
+	  	 	forsec t1List{ t1List.children() }
+	  	 	t1List.unique()
+	  	 	theLength = 0
+	  	 	forsec t1List{ theLength += L }
+	  	 } //while length<lClust add on children and parents
+	  	 
+	  	 
+	  	 
+	  	 {
+	  	 
+  
+  			 lengthList1 = new Vector(0) // a vector of branch lengths in order
+			 totalL1 = 0
+   			 forsec t1List {
+       			totalL1 += L
+       			lengthList1.append(L)
+    		  }
+
+			  cumLList1 = new Vector(lengthList1.size()) // a vector of the cummulative 
+											// branch length, in order
+	
+			  for i=0,lengthList1.size()-1{ cumLList1.x[i]=lengthList1.sum(0,i) }
+	  	 		
+	  	 		numAdded = 0
+	  	 		while(numAdded<synsPerClust){
+	  	 			
+	  	 				randomNum2 = new Random()
+						rN2 = randomNum.uniform(0,totalL1)
+						randomNum2.ACG(246)
+						
+						newInd = cumLList1.indwhere(">",rN2)
+
+	
+					dummy2 = 0
+					forsec t1List{
+	 					if(dummy==centerSecInd){ 
+	 						where2 = (cumLList1.x[newInd]-rN2)/L
+	 						
+	 					    len2 = distance(1,where2)
+	 					    print len2
+	 					    
+	 					    
+	 					    
+	 					    if(len2<lClust){
+	 					    	numAdded+=1
+	 					    	tobj = new glutamate(where2)
+	 					    	synList.append(tobj)
+	 						}
+						}
+					}
+						
+	  	 			
+	  	 		
+	  	 		}
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 }
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+
+	 }
+
+	dummy = dummy+1
+	}
+	 
+
+
+
+
+
+}
+
+
+
+
+for i=0,synList.count()-1{
+	synList.object(i).gmax = $3
+	synList.object(i).ntar = $4
+	synList.object(i).del = 500
+	synList.object(i).Tspike = 20
+	synList.object(i).Nspike = 1
+}
+
+
+	return synList
+
+} //end procedure
+

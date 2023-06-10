@@ -1,0 +1,34 @@
+create soma, dend
+access soma
+
+connect dend(0), soma(1)
+
+forall {
+  diam = 1
+  // use default Ra
+  cm = 1
+  insert pas
+  e_pas = 0
+  g_pas = 0.001 // so tau_m = 1 ms
+}
+
+// all that remains is to specify soma and dend lengths
+
+// returns DC length constant of currently accessed section
+// assumes g_pas is uniform and is the only membrane conductance
+func lambda_dc() {
+  return 50*sqrt(diam/g_pas/Ra)
+}
+
+soma nseg = 1
+dend nseg = 9
+
+// all compartments are to have equal length
+// total length of model is to be a user-specified multiple of 1 DC length constant
+// argument is the multiple
+proc setlengths() {
+  dend L = $1*dend.nseg*lambda_dc()/(dend.nseg + soma.nseg)
+  soma L = $1*soma.nseg*lambda_dc()/(dend.nseg + soma.nseg)
+}
+
+setlengths(1) // by default model is 1 length constant long

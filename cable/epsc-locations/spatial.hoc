@@ -1,0 +1,28 @@
+// The membrane potential measured at different points along a cable in response 
+// to the EPSC evoked at the left-hand end of the cable.
+
+load_file("nrngui.hoc")
+
+create dend
+access dend
+
+// Set its geometry and insert passive channels
+dend {
+  diam = 1
+  L = 500
+  nseg = 50
+  insert pas
+  g_pas = 0.0001  
+}
+
+// Set the resting membrane potential
+v_init = -70
+
+// Insert a synapse at one end
+objref syn
+syn = new AlphaSynapse(0)
+syn.gmax = 0.01
+syn.onset = 1
+tstop = 5
+
+load_file("spatial.ses")

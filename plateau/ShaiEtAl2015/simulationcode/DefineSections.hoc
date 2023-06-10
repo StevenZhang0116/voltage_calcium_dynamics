@@ -1,0 +1,70 @@
+
+
+objref tuftList
+tuftList = new SectionList()
+L5PC.apic[22] {tuftList.subtree()}
+L5PC.apic[22] {tuftList.remove()}
+
+forsec tuftList{ 
+
+	if (L/nseg>0.1){
+		nseg = int(L/5)+3
+	
+	}
+	//print "nseg is ", nseg
+
+}
+
+
+// HOTZONE I WILL TAKE TO BE L5PC.APIC[22]
+objref hotZoneList
+hotZoneList = new SectionList()
+L5PC.apic[22] {hotZoneList.append()}
+
+objref axonList
+axonList = new SectionList()
+L5PC.axon[0]{axonList.append()}
+L5PC.axon[1]{axonList.append()}
+
+
+
+
+
+objref basalList
+basalList = new SectionList()
+basalList.wholetree()
+basalList.remove(tuftList)
+basalList.remove(hotZoneList)
+basalList.remove()
+
+forsec basalList{ 
+
+	if (L/nseg>0.1){
+		nseg = int(L/5)+3
+	
+	}
+	//print "nseg is ", nseg
+
+}
+
+
+objref allSections
+allSections = new SectionList()
+allSections.wholetree()
+allSections.remove(axonList)
+
+
+
+objref shapeG
+shapeG = new Shape()
+//shapeG.color_list(tuftList,2) //red
+//shapeG.color_list(hotZoneList,3) //blue
+//shapeG.color_list(basalList,5) // orange
+shapeG.color_list(axonList,0)
+shapeG.color_list(allSections,1)
+
+
+
+
+
+

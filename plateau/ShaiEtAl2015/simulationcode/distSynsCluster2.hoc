@@ -1,0 +1,160 @@
+
+
+obfunc distSynsCluster2() { local totalSyns localobj temprList1, rList1, synList, tempSynList, lengthList1, cumLList1, sref, centerList, t1List, lengthList, cumLList, tobj, toAdd, randomNum, randomNum2, r2, randomVec, distList
+	// INPUTS
+	// numClust = $1 //number of clusters
+	// section list for synapses to be distributed over= $2
+	// gmax = $3, this is the max conductance of the nmda current
+	// ntar = $4, this defines the conductance of the ampa current
+	//            with ampa current = gmax/ntar
+	// synsPerClust =$5 //number of synapses per cluster
+	// lClust = $6 //length of cluster
+centerList = new List()
+synList = new List()
+print "We now have ", synList.count(), " synapses total"
+   seed = 8
+   lengthList = new Vector(0) // a vector of branch lengths in order
+   numClust = $1 //numClust	 
+   synsPerClust =$5 //number of synapses per cluster
+   lClust = $6 //length of cluster
+
+   totalL = 0
+   forsec $o2 {
+       totalL += L
+       lengthList.append(L)
+    }
+
+cumLList = new Vector(lengthList.size()) // a vector of the cummulative 
+											// branch length, in order
+rList1 = new Vector(numClust)
+	
+for i=0,lengthList.size()-1{
+    cumLList.x[i]=lengthList.sum(0,i)
+}
+
+	seed = 3878
+
+	randomNum = new Random(seed)
+	rN = randomNum.uniform(0,totalL)
+	//randomNum.ACG(seed+88)
+	
+print numClust
+for r=1,numClust{
+	print ""
+	print ""
+	print "=======Cluster", r, "======="
+	
+	// FIND CENTER OF CLUSTER
+	randomNum.ACG(r+seed+83288)
+	rN = randomNum.uniform(0,totalL)
+	print "random number chosen is ", rN
+	rList1.x[r-1] = rN
+	temprList1 = new Vector()
+	temprList1.copy(rList1)
+	temprList1.sub(rN).abs()
+	print "Chosen numbers so far ", rList1.printf()
+	while(temprList1.indwhere("<",75)!=(r-1)){
+		print "Random number chosen is too close to another cluster, try again"
+		rN = randomNum.uniform(0,totalL)
+		print "New random number is ", rN
+		rList1.x[r-1] = rN
+		temprList1 = new Vector()
+		temprList1.copy(rList1)
+		temprList1.sub(rN).abs()
+	}
+
+	
+	//find first index which has length greater than chosen random number
+
+	centerSecInd = cumLList.indwhere(">",rN)
+
+	dummy = 0
+	forsec $o2{
+	
+	 if(dummy==centerSecInd){ //if we are in the section with the cluster center
+	 print "dendrite number ", dummy
+	  	 where = (cumLList.x[centerSecInd]-rN)/L	
+	  	 tobj = new AlphaSynapse(where)
+	  	 centerList.append(tobj)
+	  	 distance(0,where)
+	  	t1List = new SectionList()
+	  	 t1List.append()
+	  	 //t1List.printnames()
+	  	 theLength = L
+	  	 
+	  	print "the length of this dendrite is ", theLength, " and we need at least", lClust
+	  	 
+	  	while(theLength<lClust){ //while length<lClust add on children and parents
+	  	 	forsec t1List{ 
+	  	 		t1List.children()
+	  	 		sref = new SectionRef()
+	  	 		sref.parent {t1List.append()}
+	  	 		}
+	  	 	t1List.unique()
+	  	 	theLength = 0
+	  	 	forsec t1List{ theLength += L }
+	  	 } //while length<lClust add on children and parents
+
+		print "We are adding synapses along these sections: ", t1List.printnames()
+
+	  	 tempSynList = distSynsUniform(1000,t1List,$3,$4)
+	  	 print "We are now choosing from ", tempSynList.count(), " synapses"
+	  	 
+	  	 k=0
+	  	 numAdded=0
+	  	 while (k<tempSynList.count()&&numAdded<synsPerClust){
+	  	 	localLoc = centerList.o(r-1).get_loc()
+	  	 	distance(0,localLoc)
+	  	 	pop_section()
+	 		localLoc = tempSynList.o(k).get_loc()
+	 		localLoc = distance(localLoc)
+	 		pop_section()
+	 		if (localLoc<lClust){
+	 		print "we are now adding a synapse with distance: ", localLoc
+	  	 	synList.append(tempSynList.o(k))
+	  	 	numAdded +=1
+	  	 	}
+	  	 	k+=1
+	  	 } 
+	  	 print "We now have ", synList.count(), " synapses total"
+	  	 print ""
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+	  	 
+
+	 }
+
+	dummy = dummy+1
+	}
+	 
+
+
+
+
+
+}
+
+
+
+
+for i=0,synList.count()-1{
+	synList.object(i).gmax = $3
+	synList.object(i).ntar = $4
+	synList.object(i).del = 50
+	synList.object(i).Tspike = 20
+	synList.object(i).Nspike = 1
+}
+	print "rList1 is "
+	rList1.printf()
+
+	return synList
+
+} //end procedure
+

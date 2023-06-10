@@ -1,0 +1,82 @@
+
+proc Compute_Zin() { localobj z
+
+   z = new Impedance()      
+   L5PC.soma { z.loc(0.5) } 
+   z.compute(0)                         
+                       
+   Zin = 0
+   L5PC.soma { Zin = z.input(0.5) } 
+   print "Input impedance: ", Zin
+}
+
+proc Compute_ZinDend() { localobj z
+
+   z = new Impedance()      
+   L5PC.apic[36] { z.loc(0.9) } 
+   z.compute(0)                         
+                       
+   Zin = 0
+   L5PC.apic[36] { Zin = z.input(0.9) } 
+   print "Dend Input impedance: ", Zin
+}
+
+
+proc Compute_Sag() { localobj istim, vvec, tvec
+	
+	istim = new IClamp(0.5)
+	istim.del = 500
+	istim.dur = 1000
+	istim.amp = -.3
+	
+	vvec = new Vector()
+	vvec.record(&L5PC.soma.v)
+	
+	tvec = new Vector()
+	tvec.record(&t)
+
+	tstop = 1000
+	init()
+	run()
+	
+	trest = tvec.indwhere(">",499)
+
+	vrest = vvec.x[trest-1]
+	vmin = vvec.min()
+	vss = vvec.x[vvec.size()-1]
+
+	sag = (vmin-vss)/(vss-vrest)*100
+	print "Sag: ", sag
+	print "Vrest: ", vrest
+}
+
+
+
+proc Compute_SagDend() { localobj istim, vvec, tvec
+	L5PC.apic[36]{
+	istim = new IClamp(0.9)
+	istim.del = 500
+	istim.dur = 1000
+	istim.amp = -.3
+	}
+	
+	vvec = new Vector()
+	vvec.record(&L5PC.apic[36].v(0.9))
+	
+	tvec = new Vector()
+	tvec.record(&t)
+
+	tstop = 1000
+	init()
+	run()
+	
+	trest = tvec.indwhere(">",499)
+
+	vrest = vvec.x[trest-1]
+	vmin = vvec.min()
+	vss = vvec.x[vvec.size()-1]
+
+	sag = (vmin-vss)/(vss-vrest)*100
+	print "SagDend: ", sag
+	print "VrestDend: ", vrest
+}

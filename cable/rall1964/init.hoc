@@ -1,0 +1,246 @@
+load_file("nrngui.hoc")
+load_file("cell.hoc")
+
+load_file("rig.ses")
+
+objref g
+g = Graph[0] // from rig.ses
+
+objref slist
+
+proc run_and_keep() {
+  run()
+  g.exec_menu("Keep Lines")
+  g.exec_menu("Keep Lines")
+}
+
+proc fig5() { local ii  localobj stim
+  g.erase_all()
+  g.label(0.801917, 0.201278, "Fig. 5", 2, 1, 0, 0, 1)
+  g.label(0.396166, 0.474441, "Model length = lambda_DC", 2, 1, 0, 0, 1)
+  g.addexpr("soma.v(0.5)", 1, 1, 0.196166, 0.909585, 2)
+  tstop = 2
+
+  setlengths(1) // 1 length constant
+  slist = new List()
+
+  // "excitatory synapses" onto all compartments
+  // "synaptic conductance" equal to 1/input resistance of an isolated compartment
+  forall for (x,0) {
+    stim = new Gpulse1(x)
+    stim.del = 0
+    stim.ton = 1e9
+    stim.toff = 1e9
+    stim.num = 1
+    stim.e = 1 // mV
+    stim.gmax = g_pas*area(0.5)/100
+    slist.append(stim)
+  }
+
+  // activate all
+  run_and_keep()
+
+  for ii = 0,9 slist.o(ii).gmax*=2
+
+  // activate distal
+  for ii = 0,4 slist.o(ii).num = 0
+  run_and_keep()
+  for ii = 0,4 slist.o(ii).num = 1
+
+  // activate proximal
+  for ii = 5,9 slist.o(ii).num = 0
+  run_and_keep()
+
+  g.exec_menu("View = plot")
+}
+
+proc fig5inset() { local ii  localobj stim
+  g.erase_all()
+  g.label(0.690096, 0.828115, "Fig. 5 inset", 2, 1, 0, 0, 1)
+  g.label(0.396166, 0.474441, "Model length = lambda_DC", 2, 1, 0, 0, 1)
+  g.addexpr("soma.v(0.5)", 1, 1, 0.196166, 0.909585, 2)
+  tstop = 2
+
+  setlengths(1) // 1 length constant
+  slist = new List()
+
+  // "excitatory synapses" onto all compartments
+  // "synaptic conductance" equal to 1/input resistance of an isolated compartment
+  forall for (x,0) {
+    stim = new Gpulse1(x)
+    stim.del = 0
+    stim.ton = 0.2
+    stim.toff = 1e9
+    stim.num = 1
+    stim.e = 1 // mV
+    stim.gmax = g_pas*area(0.5)/100
+    slist.append(stim)
+  }
+
+  // activate all
+  run_and_keep()
+
+  for ii = 0,9 slist.o(ii).gmax*=2
+
+  // activate distal
+  for ii = 0,4 slist.o(ii).num = 0
+  run_and_keep()
+  for ii = 0,4 slist.o(ii).num = 1
+
+  // activate proximal
+  for ii = 5,9 slist.o(ii).num = 0
+  run_and_keep()
+
+  g.exec_menu("View = plot")
+}
+
+proc fig6() { local ii  localobj stim
+  g.erase_all()
+  g.label(0.801917, 0.828115, "Fig. 6", 2, 1, 0, 0, 1)
+  g.label(0.396166, 0.474441, "Model length = 2*lambda_DC", 2, 1, 0, 0, 1)
+  g.addexpr("soma.v(0.5)", 1, 1, 0.196166, 0.909585, 2)
+  tstop = 2
+
+  setlengths(2) // 2 length constants
+  slist = new List()
+
+  dend for (x,0) {
+    stim = new Gpulse1(x)
+    stim.del = 1e9
+    stim.ton = 0.25
+    stim.toff = 1e9
+    stim.num = 1
+    stim.e = 1 // mV
+    stim.gmax = g_pas*area(0.5)/100
+    slist.append(stim)
+  }
+
+  for ii=0,3 {
+    slist.o(2*ii).del = 0
+    slist.o(2*ii+1).del = 0
+    run_and_keep()
+    slist.o(2*ii).del = 1e9
+    slist.o(2*ii+1).del = 1e9
+  }
+  g.exec_menu("View = plot")
+}
+
+proc fig7() { local ii  localobj stim
+  g.erase_all()
+  g.label(0.801917, 0.5, "Fig. 7", 2, 1, 0, 0, 1)
+  g.addexpr("soma.v(0.5)", 1, 1, 0.113099, 0.914377, 2)
+  tstop = 2.5
+
+  setlengths(2) // 2 length constants
+  slist = new List()
+
+  dend for (x,0) {
+    stim = new Gpulse1(x)
+    stim.del = 1e9
+    stim.ton = 0.25
+    stim.toff = 1e9
+    stim.num = 1
+    stim.e = 1 // mV
+    stim.gmax = g_pas*area(0.5)/100
+    slist.append(stim)
+  }
+
+  for ii=0,3 {
+    slist.o(2*ii).del = 0.25*ii
+    slist.o(2*ii+1).del = 0.25*ii
+  }
+  run_and_keep()
+
+  for ii=0,3 {
+    slist.o(2*ii).del = 0.25*(3-ii)
+    slist.o(2*ii+1).del = 0.25*(3-ii)
+  }
+  run_and_keep()
+
+  g.label(0.124601, 0.565495, "A->B->C->D", 2, 1, 0, 0, 1)
+  g.label(0.488817, 0.805112, "D->C->B->A", 2, 1, 0, 0, 1)
+
+  g.exec_menu("View = plot")
+}
+
+objref ilist
+
+proc fig8() { local ii  localobj stim, inh
+  g.erase_all()
+  g.label(0.801917, 0.5, "Fig. 8", 2, 1, 0, 0, 1)
+  g.addexpr("soma.v(0.5)", 1, 1, 0.38147, 0.933547, 2)
+  tstop = 2
+
+  setlengths(2) // 2 length constants
+  slist = new List()
+  ilist = new List()
+
+  // control
+  dend for ii=3,4 {
+    stim = new Gpulse1((ii+0.5)/nseg)
+    stim.del = 0
+    stim.ton = 0.25
+    stim.toff = 1e9
+    stim.num = 1
+    stim.e = 1 // mV
+    stim.gmax = g_pas*area(0.5)/100
+    slist.append(stim)
+  }
+  run_and_keep()
+
+  // proximal inh
+  soma for ii=0,1 {
+    inh = new Gpulse1(0.5)
+    inh.del = 0
+    inh.ton = 1e9
+    inh.toff = 1e9
+    inh.num = 1
+    inh.e = 0 // mV
+    inh.gmax = g_pas*area(0.5)/100
+    ilist.append(inh)
+  }
+  dend putpp(ilist.o(1), 0.5/nseg)
+  run_and_keep()
+
+  // inh at location of exc
+  dend putpp(ilist.o(0), (3+0.5)/nseg)
+  dend putpp(ilist.o(1), (4+0.5)/nseg)
+  run_and_keep()
+
+  // distal inh
+  dend putpp(ilist.o(0), (7+0.5)/nseg)
+  dend putpp(ilist.o(1), (8+0.5)/nseg)
+  run_and_keep()
+
+  g.exec_menu("View = plot")
+}
+
+// $o1 is objref of the point process that is to be repositioned
+// $2 is the location on the currently accessed section
+// to which it is to be moved
+func putpp() { local pploc
+  if ($2 < 0 || $2 > 1) {
+    printf("%c",7) // ring bell
+    print "ERROR--location must be in the range [0, 1]" 
+    pploc = -1
+  } else {
+    // say what we want
+    $o1.loc($2)
+    // find out what we got
+    pploc = $o1.get_loc()
+    /* Note: get_loc() pushes the section of the target point 
+       process onto the section stack, so that it becomes the 
+       currently accessed section.  We must restore the currently 
+       accessed section to what it was before get_loc(). */
+    pop_section()
+  }
+  return pploc
+}
+
+xpanel("Which figure?")
+xbutton("Fig. 5--exc central vs. peripheral tree", "fig5()")
+xbutton("Fig. 5 inset--brief excitation", "fig5inset()")
+xbutton("Fig. 6--effect of location of excitatory input", "fig6()")
+xbutton("Fig. 7--effect of activation sequence", "fig7()")
+xbutton("Fig. 8--effect of inh location", "fig8()")
+xpanel(348,332)

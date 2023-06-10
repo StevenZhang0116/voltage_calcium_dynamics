@@ -1,0 +1,81 @@
+objref synList
+
+obfunc distSynsUniform() { local totalL, totalSyns localobj lengthList, cumLList, tobj, toAdd, randomNum, r2, randomVec, distList
+	// INPUTS
+	// totalSyns = $1
+	// section list for synapses to be distributed over= $2
+	// gmax = $3, this is the max conductance of the nmda current
+	// ntar = $4, this defines the conductance of the ampa current
+	//            with ampa current = gmax/ntar
+
+   
+   lengthList = new Vector(0) // a vector of branch lengths in order
+   totalSyns = $1	 
+
+   totalL = 0
+   forsec $o2 {
+       totalL += L
+       lengthList.append(L)
+    }
+
+cumLList = new Vector(lengthList.size()) // a vector of the cummulative 
+											// branch length, in order
+
+for i=0,lengthList.size()-1{
+    cumLList.x[i]=lengthList.sum(0,i)
+}
+
+synList = new List()
+
+randomNum = new Random()
+randomNum.uniform(0,totalL)
+randomVec = new Vector(totalSyns)
+randomNum.ACG(seed)
+randomVec.setrand(randomNum)
+randomVec.sort()
+
+toAdd = new Vector(0)
+
+for i=0, lengthList.size()-1{
+    howManyToAdd=0
+    while (randomVec.x[0]<cumLList.x[i]){
+    	  howManyToAdd += 1
+	  randomVec.remove(0)
+	  if (randomVec.size()<1){randomVec.append(99999999999999)}
+    }
+  toAdd.append(howManyToAdd)
+}
+
+ind = 0
+distList = new Vector(0)
+access L5PC.soma
+distance()
+r2 = new Random()
+forsec $o2 {
+       for i=1,toAdd.x[ind]{
+       	   where = r2.uniform(0,1)
+	   distList.append(distance(where))
+	   //tobj = new Exp2Syn(where)
+	   tobj = new glutamate(where)
+	   synList.append(tobj)
+       }
+       ind+=1
+}
+
+
+for i=0,synList.count()-1{
+    //synList.object(i).tau1 = $4
+    //synList.object(i).tau2 = $5 //bernander, douglas, martin, koch 1991 paper has this as 1.5ms
+    //synList.object(i).e = $3  //bernander, douglas, martin, koch 1991 paper has this as 0 V
+	synList.object(i).gmax = $3
+	synList.object(i).ntar = $4
+	synList.object(i).del = 500
+	synList.object(i).Tspike = 20
+	synList.object(i).Nspike = 1
+}
+
+
+	return synList
+
+} //end procedure
+

@@ -1,0 +1,530 @@
+%--------------------------------------------------------------------------
+% Mean-field Representation of Sobie 2002 Model
+% Main Function
+% Many thanks to Guanchun Li, Courant Institute for his generous assistence 
+% and inspiration
+%
+% Steven Zhang, Courant Institute
+% Updated July 2022
+%--------------------------------------------------------------------------
+
+clear;
+close all
+
+param1 = 0.25:0.1:0.25;   % lumenal initial condition
+param2 = 1:0.5:1;       % V_SS
+param3 = 4:0.005:4; % \tau_{efflux}
+param4 = 1:1:1;         % D_{RyR}
+ryrnumpara = 4:1:4;     % ryr num
+currmag = 0.03:0.002:0.03; % DHPR current magnitude
+
+M1 = combvec(param1,param2,param3,param4,ryrnumpara,currmag);
+
+tt = size(M1,2);
+result1 = zeros(tt,1);
+result2 = zeros(tt,1);
+result3 = zeros(tt,1);
+result4 = zeros(tt,1);
+
+tttt = load('./res/test.mat');
+
+std1 = load('stdopenprob.mat').prob;
+std2 = load('stdcalss.mat').calss;
+std3 = load('stdcallumen.mat').stdcallumen;
+stdt = load('stdtime.mat').t;
+
+
+disp(['total calculation =',tt])
+
+aa = cell(1,length(currmag));
+bb = cell(1,length(currmag));
+
+
+for iii = 1:tt
+    disp(iii)
+    MM = M1(:,iii);
+
+    para1 = MM(1);
+    para2 = MM(2);
+    para3 = MM(3);
+    para4 = MM(4);
+    ryrnum = MM(5);
+    currval = MM(6);
+
+    y_Sobie_ss = mf_initialization_2002(para1);
+    tot_result = mf_equation_2002;
+
+    % DHPR characterization
+    st = 0.0; % ms
+    et = 0.5; % ms
+    
+    % Original DHPR
+    I_DHPR_func = @(t)0.0-0.5.*(t>=st).*(t<=et);
+
+    % Rosado 2022 paper's formulation of calcium release
+    rosadoind = 1;
+    if rosadoind == 1
+        j_c = currval;
+        tau_rls = 10; % lasting time of DHPR
+        I_DHPR_func = @(t)-1 * (t<=tau_rls).*j_c.*(1-t/tau_rls);
+    end
+
+    % ====================
+    % DHPR formulation
+    % ====================  
+    
+    % whether to smooth using Gaussian
+    smoothind = 0;
+    convind = 0;
+    if smoothind == 1
+        int = 0.001; % length of interval
+        mm = (et-st)/2;
+        sig = 0.15 * (et-st)/0.5; % sigma, as the standard deviation
+        % Gaussian function
+        adj = 5*abs(sig-0.1)*(sig>0.1);
+        origtm = 5;
+        tm = st-adj;
+        tp = et+adj;
+        ss = st - 0.5 - adj;
+        ee = et + 0.5 + adj;
+        xx = ss:int:ee;
+    
+        modfy_DHPR = @(t)((1/(sig*sqrt(2*pi)).*exp(-(t-mm).^2/...
+            (2*sig^2)))/ (4/3) *-1);
+    
+        summ1 = [];
+        for hh=1:length(xx)
+            summ1(end+1) = modfy_DHPR(xx(hh));
+        end
+        sum(summ1) * int % integral of gaussian
+
+        % original result
+        figure()
+        plot(xx,modfy_DHPR(xx))
+        hold on
+        plot(xx,I_DHPR_func(xx))
+        hold on
+        legend('gaussian','step')
+        title('gaussian')
+        pause
+        
+        if smoothind == 1 && convind ~= 1
+            I_DHPR_func = modfy_DHPR;
+        end
+        
+        if convind == 1
+            res1 = I_DHPR_func(xx);
+            res2 = modfy_DHPR(xx);
+            cr = conv(res1,res2,'same');
+            aa = sum(cr)*2;
+            % convolution result
+            adfac = -500/aa;
+            cr = cr * adfac;
+        
+            sum(cr) * int % integral of convolution
+        
+            newxx = xx-(mm-origtm);
+        
+            % convolution result
+            figure()
+            hold on
+            plot(newxx,cr)
+            plot(xx,I_DHPR_func(xx))
+            
+            title('convolution')
+            pause;
+        
+            fz = 0;
+            sz = 0;
+            for nn=1:length(newxx)
+                ll = cr(nn);
+                if round(ll,4) < -0.0001 
+                    fz = nn;
+                    break
+                end
+            end
+        
+            for nn=1:length(newxx)
+                ll = cr(nn);
+                if round(ll,4) > -0.0001 && newxx(nn) > mm
+                    sz = nn;
+                    break
+                end
+            end
+        
+            % piecewise interpolation
+            pip = interp1(newxx,cr,'linear','pp');
+        
+            plot(newxx,ppval(pip,newxx))
+            legend('convolution','step','linear interpolation')
+            hold off
+            pause;
+        
+            I_DHPR_func = @(t) (ppval(pip,t) .* (t>=newxx(1)) .* (t<=newxx(end)) + 0);
+        end
+    end
+
+    % ====================
+    % start calculation
+    % ====================  
+    close all
+
+    ryr_sobie_test = @(t,y) tot_result.test_ss_model(y,I_DHPR_func(t),...
+        para1,para2,para3,para4,ryrnum);
+   
+    y0 = y_Sobie_ss';
+    % y0(1) = 0;
+    
+    % MOD by Li 6
+    opts = odeset('RelTol',1e-6,'AbsTol',1e-7,'MaxStep',1e-1);
+    [t,y] = ode45(ryr_sobie_test,[0,100],y0,opts);
+    
+    j_ryr_lst = 0*t;
+    dlst = zeros(length(t),4);
+    dyss_lst = 0*t;
+    kcloseset = 0*t;
+    kopenset = 0*t;
+    backval = 0;
+    f1set = 0*t; 
+    f2set = 0*t;
+    for ii=1:length(t)
+        [dy,j_ryr,d_y_ss,dirvv,kopenclose,facset] = tot_result.test_ss_model(...
+            y(ii,:),I_DHPR_func(t(ii)),para1,para2,para3,para4,ryrnum);
+        j_ryr_lst(ii) = j_ryr;
+        dlst(ii,1) = dirvv(1);
+        dlst(ii,2) = dirvv(2);
+        dlst(ii,3) = dirvv(3);
+        dlst(ii,4) = dirvv(4);
+        dyss_lst(ii) = d_y_ss;
+        kcloseset(ii) = kopenclose(1);
+        kopenset(ii) = kopenclose(2);
+        f1set(ii) = facset(1);
+        f2set(ii) = facset(2);
+    end
+
+
+    % plot flux dynamics
+    plttend = 1;
+    if plttend == 1
+        figure()
+        for ind = 1:4
+            hold on
+            semilogy(t,dlst(:,ind),'LineWidth',2);
+        end
+        xline(10,'LineWidth',2,'LineStyle','--')
+        yline(0,'LineWidth',2,'LineStyle','--')
+        hold off
+        legend({'j_{dhpr}','j_{efflux}',',j_{buff}','j_{ryr}'},'FontSize',12)
+        xlim([0 20])
+        xlabel('Time','FontSize',12)
+
+        figure()
+        plot(t,dyss_lst,'LineWidth',2,'LineStyle','-.')
+        legend({'d[Ca^{2+}]_{SS}'},'FontSize',12)
+        xlim([0.1 20])
+        xlabel('Time (ms)','FontSize',12)
+        ylabel('Time derivative','FontSize',12)
+        yline(0,'LineStyle','--')
+
+        pause
+    end
+
+
+    F = 96.485; 
+    V_ds = 1.0000e-13;
+    I_ryr_lst = 1e6 * j_ryr_lst * 2 * F * V_ds;
+    
+    result = [t,y,I_ryr_lst];
+    
+    prob = y(:,1);
+    cal_ss = y(:,3);
+    cal_lumen = y(:,2);
+    flux = I_ryr_lst;
+
+    kkkk = [];
+    kkkk(:,1) = t;
+    kkkk(:,2) = f1set;
+    kkkk(:,3) = f2set;
+    bb{iii} = kkkk;
+
+    [~,lumenmint] = min(cal_lumen);    
+    [~,ssmaxt] = max(cal_ss);
+    [~,openmaxt] = max(prob);
+
+    secplot = 1;
+    if secplot == 1
+        figure()
+        plot(t,f1set)
+        hold on
+        plot(t,f2set)
+        hold off
+        legend('[Ca]_{SS}^4','K_m^4')
+        xlabel('Time (ms)')
+        set(gca, 'YScale', 'log')
+    
+        figure('units','normalized','outerposition',[0.05 0.05 0.9 0.9]);
+        subplot(1,3,1)
+        plot(t,cal_ss,'LineWidth',2)
+        hold on;
+        xline(t(lumenmint),'LineWidth',2,'LineStyle','--','DisplayName','ll;lllllll');
+        xline(tau_rls,'LineWidth',2,'LineStyle','--');
+        xline(t(ssmaxt),'LineWidth',2,'LineStyle','--');
+        xline(t(openmaxt),'LineWidth',2,'LineStyle','--');
+        hold off
+        xlim([0 30])
+        xlabel('Time (ms)')
+        ylabel('Concentration (\mu M)')
+        title('SS Concentration','FontSize',16)
+
+        subplot(1,3,2)
+        plot(t,cal_lumen,'LineWidth',2)
+        hold on;
+        xline(t(lumenmint),'LineWidth',2,'LineStyle','--');
+        xline(tau_rls,'LineWidth',2,'LineStyle','--');
+        xline(t(ssmaxt),'LineWidth',2,'LineStyle','--');
+        xline(t(openmaxt),'LineWidth',2,'LineStyle','--');
+        hold off
+        xlabel('Time (ms)')
+        ylabel('Concentration (\mu M)')
+        title('Lumenal Concentration','FontSize',16)
+
+        subplot(1,3,3)
+        plot(t,prob,'LineWidth',2)
+        hold on;
+        xline(t(lumenmint),'LineWidth',2,'LineStyle','--');
+        xline(tau_rls,'LineWidth',2,'LineStyle','--');
+        xline(t(ssmaxt),'LineWidth',2,'LineStyle','--');
+        xline(t(openmaxt),'LineWidth',2,'LineStyle','--');
+        hold off
+        xlim([0 30])
+        xlabel('Time (ms)')
+        ylabel('Probablity')
+        title('Open Probablity','FontSize',16)
+
+        save('bestdata.mat','t','cal_ss')
+        sgtitle("t_1:"+t(ssmaxt)+'; t_2:'+tau_rls+'; t_3:'+t(lumenmint)+'; t_4'+t(openmaxt))
+        pause
+        close
+    
+    end
+    
+
+    % ===================================== % 
+    % calculate ratios
+    % ===================================== % 
+    
+    % calculate the maximum difference and also the integral difference
+    diff1 = max(prob);
+    diff11 = sum(prob);
+    diff2 = max(cal_ss);
+    diff22 = sum(cal_ss);
+    diff23 = sum(cal_ss) * (max(t)/length(t));
+
+    probendtime = 0;
+    
+    for i=1:length(stdt)
+        if stdt(i) > 6
+            ind = i;
+            break
+        end
+    end
+    
+    for j=ind:length(stdt)
+        if std1(j) < 0.001
+            stdendtime = stdt(j);
+            break
+        end
+    end
+    
+    for i=1:length(t)
+        if t(i) > 6
+            ind2 = i;
+            break
+        end
+    end
+    
+    for j=ind2:length(t)
+        if prob(j) < 0.01
+            probendtime = t(j);
+            break
+        end
+    end
+    
+    timediff = probendtime;
+    
+    hold off
+
+    pltind = 0;
+    if pltind == 1
+        figure()
+        hold on
+        plot(t,prob,'LineWidth',2)
+        plot(tttt.t,tttt.prob,'-.','LineWidth',1)
+        ylim([0 1])
+        legend('smooth','orig')
+        title('open prob comparsion')
+        xlabel('time (ms)')
+        ylabel('open probablity')
+        hold off
+        xlim([0 14])
+        
+    
+        figure()
+        hold on
+        plot(t,cal_lumen,'LineWidth',2)
+        plot(tttt.t,tttt.cal_lumen,'-.','LineWidth',1)
+        legend('smooth','orig')
+        title('ER calcium concentration comparsion')
+        xlabel('time (ms)')
+        ylabel('concentration (\mu M)')
+        ylim([0 1000])
+        hold off
+    
+        figure()
+        hold on
+        plot(t,cal_ss,'LineWidth',2)
+        plot(tttt.t,tttt.cal_ss,'-.','LineWidth',1)
+        legend('smooth','orig')
+        title('SS Concentration','FontSize',16)
+        xlabel('Time (ms)')
+        ylabel('Concentration (\mu M)')
+        xlim([0 10])
+        ylim([0 15])
+    
+        figure()
+        plot(t,kcloseset)
+        hold on
+        plot(t,kopenset)
+        hold off
+        xlabel('time (ms)')
+        ylabel('rate of open/close ms^{-1}')
+        xlim([0 14])
+        ylim([0 20])
+        legend('k_{close}','k_{open}')
+
+    end
+
+
+    % open prob diff
+    result1(iii) = diff1; 
+    % calcium maximum diff
+    result2(iii) = diff2; 
+    % complete closing time diff
+    result3(iii) = timediff;
+
+    for kk = 1:length(t)
+        tt = t(kk);
+        if round(tt,2) == 5.5
+            backind = kk;
+        end
+    end
+    [firstmax,t1] = max(cal_ss(1:backind));
+    [secondmax,t2] = max(cal_ss(backind:end));
+    t2 = backind + t2;
+    vdiff1 = firstmax-secondmax;
+    vdiff2 = firstmax-min(cal_ss(t1:t2));
+    maxtimediff = t(t2)-t(t1);
+    result4(iii) = maxtimediff;
+
+    ssss = [];
+    ssss(1,:) = t;
+    ssss(2,:) = cal_lumen;
+    ssss(3,:) = cal_ss;
+    ssss(4,:) = prob;
+    aa{iii} = ssss;
+end
+
+% generate color
+lightBLUE = [0.356862745098039,0.811764705882353,0.956862745098039];
+darkBLUE = [0.0196078431372549,0.0745098039215686,0.670588235294118];
+blueGRADIENTflexible = @(i,N) lightBLUE + (darkBLUE-lightBLUE)*((i-1)/(N-1));
+
+% plot
+figure('units','normalized','outerposition',[0.05 0.05 0.9 0.9])
+subplot(1,3,1)
+hold on
+NN = length(aa);
+for iii = 1:NN
+    ssss = aa{iii};
+    plot(ssss(1,:),ssss(3,:),'-','Color',blueGRADIENTflexible(iii,NN),'LineWidth',2);
+end
+xlim([0 30])
+xlabel('Time (ms)','FontSize',16)
+ylabel('Concentration (\mu M)','FontSize',16)
+title("Current: "+min(currmag)+'-'+max(currmag)+'nA','FontSize',16)
+
+
+subplot(1,3,2)
+hold on
+NN = length(aa);
+for iii = 1:NN
+    ssss = aa{iii};
+    plot(ssss(1,:),ssss(2,:),'-','Color',blueGRADIENTflexible(iii,NN),'LineWidth',2);
+end
+xlim([0 30])
+xlabel('Time (ms)','FontSize',16)
+ylabel('Concentration (\mu M)','FontSize',16)
+title("Current:"+min(currmag)+'-'+max(currmag)+'nA','FontSize',16)
+
+subplot(1,3,3)
+hold on
+NN = length(aa);
+for iii = 1:NN
+    ssss = aa{iii};
+    plot(ssss(1,:),ssss(4,:),'-','Color',blueGRADIENTflexible(iii,NN),'LineWidth',2);
+end
+xlim([0 30])
+xlabel('Time (ms)','FontSize',16)
+title("Current:"+min(currmag)+'-'+max(currmag)+'nA','FontSize',16)
+pause
+
+
+
+% ===================================== % 
+% save data
+% ===================================== % 
+
+% save('result1','result1')
+% save('result2','result2')
+% save('result3','result3')
+% save('result4','result4')
+% save('M1','M1')
+
+if smoothind == 1 && convind == 1
+    name = ['smooth-',num2str(sig)];
+elseif smoothind == 1 && convind ~= 1
+    name = ['gaussian-',num2str(sig)];
+else
+    name = ['test'];
+end
+
+save(['./res/',name,'.mat'],'t','cal_lumen','prob','I_DHPR_func','cal_ss')
+
+save('bestdata.mat','t','cal_ss')
+
+
+% ===================================== % 
+% find the optimal result
+% ===================================== % 
+
+% con = load('result2.mat').result2;
+% time = load('result3.mat').result3;
+% maxdiff = load('result4.mat').result4;
+% M1 = load('M1.mat').M1;
+% 
+% small = 1e10;
+% ind = 0;
+% for jjjj = 1:length(con)
+%     if con(jjjj) < small && maxdiff(jjjj) > 0.01 && time(jjjj) < 15
+%         small = con(jjjj);
+%         ind = jjjj;
+%     end
+% end
+% 
+% M1(:,ind)
+
+
+
+
+
+

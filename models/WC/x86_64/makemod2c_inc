@@ -1,0 +1,9 @@
+
+./wc.c: ../wc.mod
+	@printf " -> $(C_GREEN)NMODL$(C_RESET) $<\\n"
+	(cd ".."; MODLUNIT=$(NRNUNITS) $(NOCMODL) wc.mod -o "/Users/stevenzhang/Dropbox/dave/code/models/WC/x86_64")
+
+./wc.o: ./wc.c
+	@printf " -> $(C_GREEN)Compiling$(C_RESET) $<\\n"
+	$(COMPILE) -I".." $(INCLUDES) -fPIC -c $< -o $@
+

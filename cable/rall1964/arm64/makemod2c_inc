@@ -1,0 +1,9 @@
+
+./gpulse.c: ../gpulse.mod
+	@printf " -> $(C_GREEN)NMODL$(C_RESET) $<\\n"
+	(cd ".."; MODLUNIT=$(NRNUNITS) $(NOCMODL) gpulse.mod -o "/Users/stevenzhang/Dropbox/dave/code/cable/rall1964/arm64")
+
+./gpulse.o: ./gpulse.c
+	@printf " -> $(C_GREEN)Compiling$(C_RESET) $<\\n"
+	$(COMPILE) -I".." $(INCLUDES) -fPIC -c $< -o $@
+
